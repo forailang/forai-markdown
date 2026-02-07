@@ -1,0 +1,480 @@
+use std.str
+
+doc count_hashes {
+    summary: "Counts leading hash characters in a line"
+    params: { line: "The input line" }
+    returns: "Number of leading hash characters"
+}
+fn count_hashes(line: str) -> i64 {
+    let mut count = 0
+    each {
+        match count < line.len() {
+            true -> {
+                match line.char_at(count) == "#" {
+                    true -> { count = count + 1 }
+                    false -> { break }
+                }
+            }
+            false -> { break }
+        }
+    }
+    count
+}
+
+doc is_digit {
+    summary: "Checks if a single character string is a digit"
+    params: { c: "A single character string" }
+    returns: "1 if digit, 0 otherwise"
+}
+fn is_digit(c: str) -> i64 {
+    match c {
+        "0" -> 1
+        "1" -> 1
+        "2" -> 1
+        "3" -> 1
+        "4" -> 1
+        "5" -> 1
+        "6" -> 1
+        "7" -> 1
+        "8" -> 1
+        "9" -> 1
+        _ -> 0
+    }
+}
+
+doc is_ol_line {
+    summary: "Checks if a line is an ordered list item"
+    params: { line: "The input line" }
+    returns: "1 if ordered list item, 0 otherwise"
+}
+fn is_ol_line(line: str) -> i64 {
+    match line.len() > 2 {
+        true -> {
+            match is_digit(line.char_at(0)) {
+                1 -> {
+                    let dot_pos = line.index_of(". ")
+                    match dot_pos >= 1 {
+                        true -> {
+                            match dot_pos <= 3 {
+                                true -> 1
+                                false -> 0
+                            }
+                        }
+                        false -> 0
+                    }
+                }
+                _ -> 0
+            }
+        }
+        false -> 0
+    }
+}
+
+doc ol_content {
+    summary: "Extracts the content from an ordered list line"
+    params: { line: "An ordered list line" }
+    returns: "The text after the number and dot"
+}
+fn ol_content(line: str) -> str {
+    let dot_pos = line.index_of(". ")
+    line.substring(dot_pos + 2, line.len())
+}
+
+doc classify_line {
+    summary: "Classifies a trimmed line by its markdown type"
+    params: { line: "A trimmed input line" }
+    returns: "A type tag string"
+}
+fn classify_line(line: str) -> str {
+    match line.len() == 0 {
+        true -> "blank"
+        false -> {
+            match line.starts_with("```") {
+                1 -> "fence"
+                _ -> {
+                    let hashes = count_hashes(line)
+                    match hashes >= 1 {
+                        true -> {
+                            match hashes <= 6 {
+                                true -> {
+                                    match line.len() > hashes {
+                                        true -> {
+                                            match line.char_at(hashes) == " " {
+                                                true -> "header"
+                                                false -> "text"
+                                            }
+                                        }
+                                        false -> "text"
+                                    }
+                                }
+                                false -> "text"
+                            }
+                        }
+                        false -> {
+                            match line == "---" {
+                                true -> "hr"
+                                false -> {
+                                    match line.starts_with("- ") {
+                                        1 -> "ul"
+                                        _ -> {
+                                            match is_ol_line(line) {
+                                                1 -> "ol"
+                                                _ -> {
+                                                    match line.starts_with("> ") {
+                                                        1 -> "bq"
+                                                        _ -> "text"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+doc format_inline {
+    summary: "Applies inline markdown formatting to text"
+    params: { text: "The text to format" }
+    returns: "Text with inline HTML markup applied"
+}
+fn format_inline(text: str) -> str {
+    let mut result = text
+    each {
+        let pos = result.index_of("`")
+        match pos >= 0 {
+            true -> {
+                let after = result.substring(pos + 1, result.len())
+                let end_pos = after.index_of("`")
+                match end_pos >= 0 {
+                    true -> {
+                        let before = result.substring(0, pos)
+                        let code_text = after.substring(0, end_pos)
+                        let rest = after.substring(end_pos + 1, after.len())
+                        result = before + "<code>" + code_text + "</code>" + rest
+                    }
+                    false -> { break }
+                }
+            }
+            false -> { break }
+        }
+    }
+    each {
+        let pos = result.index_of("**")
+        match pos >= 0 {
+            true -> {
+                let after = result.substring(pos + 2, result.len())
+                let end_pos = after.index_of("**")
+                match end_pos >= 0 {
+                    true -> {
+                        let before = result.substring(0, pos)
+                        let bold_text = after.substring(0, end_pos)
+                        let rest = after.substring(end_pos + 2, after.len())
+                        result = before + "<strong>" + bold_text + "</strong>" + rest
+                    }
+                    false -> { break }
+                }
+            }
+            false -> { break }
+        }
+    }
+    each {
+        let pos = result.index_of("*")
+        match pos >= 0 {
+            true -> {
+                let after = result.substring(pos + 1, result.len())
+                let end_pos = after.index_of("*")
+                match end_pos >= 0 {
+                    true -> {
+                        let before = result.substring(0, pos)
+                        let em_text = after.substring(0, end_pos)
+                        let rest = after.substring(end_pos + 1, after.len())
+                        result = before + "<em>" + em_text + "</em>" + rest
+                    }
+                    false -> { break }
+                }
+            }
+            false -> { break }
+        }
+    }
+    each {
+        let pos = result.index_of("[")
+        match pos >= 0 {
+            true -> {
+                let after_bracket = result.substring(pos + 1, result.len())
+                let close_pos = after_bracket.index_of("](")
+                match close_pos >= 0 {
+                    true -> {
+                        let link_text = after_bracket.substring(0, close_pos)
+                        let after_paren = after_bracket.substring(close_pos + 2, after_bracket.len())
+                        let paren_end = after_paren.index_of(")")
+                        match paren_end >= 0 {
+                            true -> {
+                                let url = after_paren.substring(0, paren_end)
+                                let before = result.substring(0, pos)
+                                let rest = after_paren.substring(paren_end + 1, after_paren.len())
+                                result = before + "<a href=\"" + url + "\">" + link_text + "</a>" + rest
+                            }
+                            false -> { break }
+                        }
+                    }
+                    false -> { break }
+                }
+            }
+            false -> { break }
+        }
+    }
+    result
+}
+
+doc render_header {
+    summary: "Renders a header line to HTML"
+    params: { line: "A classified header line" }
+    returns: "An HTML header element string"
+}
+fn render_header(line: str) -> str {
+    let hashes = count_hashes(line)
+    let content = line.substring(hashes + 1, line.len())
+    let tag = match hashes {
+        1 -> "1"
+        2 -> "2"
+        3 -> "3"
+        4 -> "4"
+        5 -> "5"
+        _ -> "6"
+    }
+    "<h" + tag + ">" + format_inline(content) + "</h" + tag + ">"
+}
+
+doc render {
+    summary: "Converts a markdown string to an HTML string"
+    params: { input: "The markdown source text" }
+    returns: "The rendered HTML string"
+}
+pub fn render(input: str) -> str {
+    let lines = input.split("\n")
+    let mut output = ""
+    let mut i = 0
+    let mut state = "normal"
+    let mut block_content = ""
+    each {
+        match i >= lines.len() {
+            true -> { break }
+            false -> {
+                let line = lines[i]
+                let trimmed = line.trim()
+                let mut advance = 1
+                match state {
+                    "code" -> {
+                        match trimmed.starts_with("```") {
+                            1 -> {
+                                output = output + "<pre><code>" + block_content + "</code></pre>"
+                                block_content = ""
+                                state = "normal"
+                                0
+                            }
+                            _ -> {
+                                match block_content.len() > 0 {
+                                    true -> { block_content = block_content + "\n" + line }
+                                    false -> { block_content = line }
+                                }
+                                0
+                            }
+                        }
+                    }
+                    "para" -> {
+                        match trimmed.len() == 0 {
+                            true -> {
+                                output = output + "<p>" + format_inline(block_content) + "</p>"
+                                block_content = ""
+                                state = "normal"
+                                0
+                            }
+                            false -> {
+                                let kind = classify_line(trimmed)
+                                match kind {
+                                    "text" -> {
+                                        block_content = block_content + " " + trimmed
+                                        0
+                                    }
+                                    _ -> {
+                                        output = output + "<p>" + format_inline(block_content) + "</p>"
+                                        block_content = ""
+                                        state = "normal"
+                                        advance = 0
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "ul" -> {
+                        match trimmed.starts_with("- ") {
+                            1 -> {
+                                let item = trimmed.substring(2, trimmed.len())
+                                block_content = block_content + "<li>" + format_inline(item) + "</li>"
+                                0
+                            }
+                            _ -> {
+                                output = output + "<ul>" + block_content + "</ul>"
+                                block_content = ""
+                                state = "normal"
+                                advance = 0
+                            }
+                        }
+                    }
+                    "ol" -> {
+                        match is_ol_line(trimmed) {
+                            1 -> {
+                                let item = ol_content(trimmed)
+                                block_content = block_content + "<li>" + format_inline(item) + "</li>"
+                                0
+                            }
+                            _ -> {
+                                output = output + "<ol>" + block_content + "</ol>"
+                                block_content = ""
+                                state = "normal"
+                                advance = 0
+                            }
+                        }
+                    }
+                    "bq" -> {
+                        match trimmed.starts_with("> ") {
+                            1 -> {
+                                let bq_text = trimmed.substring(2, trimmed.len())
+                                block_content = block_content + " " + bq_text
+                                0
+                            }
+                            _ -> {
+                                output = output + "<blockquote>" + format_inline(block_content) + "</blockquote>"
+                                block_content = ""
+                                state = "normal"
+                                advance = 0
+                            }
+                        }
+                    }
+                    _ -> {
+                        let kind = classify_line(trimmed)
+                        match kind {
+                            "blank" -> 0
+                            "fence" -> {
+                                state = "code"
+                                block_content = ""
+                                0
+                            }
+                            "header" -> {
+                                output = output + render_header(trimmed)
+                                0
+                            }
+                            "hr" -> {
+                                output = output + "<hr>"
+                                0
+                            }
+                            "ul" -> {
+                                let item = trimmed.substring(2, trimmed.len())
+                                state = "ul"
+                                block_content = "<li>" + format_inline(item) + "</li>"
+                                0
+                            }
+                            "ol" -> {
+                                let item = ol_content(trimmed)
+                                state = "ol"
+                                block_content = "<li>" + format_inline(item) + "</li>"
+                                0
+                            }
+                            "bq" -> {
+                                state = "bq"
+                                block_content = trimmed.substring(2, trimmed.len())
+                                0
+                            }
+                            _ -> {
+                                state = "para"
+                                block_content = trimmed
+                                0
+                            }
+                        }
+                    }
+                }
+                i = i + advance
+            }
+        }
+    }
+    match state {
+        "para" -> { output = output + "<p>" + format_inline(block_content) + "</p>" }
+        "ul" -> { output = output + "<ul>" + block_content + "</ul>" }
+        "ol" -> { output = output + "<ol>" + block_content + "</ol>" }
+        "bq" -> { output = output + "<blockquote>" + format_inline(block_content) + "</blockquote>" }
+        "code" -> { output = output + "<pre><code>" + block_content + "</code></pre>" }
+        _ -> { output = output }
+    }
+    output
+}
+
+test render {
+    // Headers
+    let h1 = render("# Hello")
+    assert h1.contains("<h1>Hello</h1>") == 1
+    let h3 = render("### Third")
+    assert h3.contains("<h3>Third</h3>") == 1
+
+    // Paragraph
+    let para = render("Hello world")
+    assert para.contains("<p>Hello world</p>") == 1
+
+    // Multi-line paragraph
+    let mp = render("line one\nline two")
+    assert mp.contains("<p>line one line two</p>") == 1
+
+    // Bold and italic
+    let bold = render("**bold** and *italic*")
+    assert bold.contains("<strong>bold</strong>") == 1
+    assert bold.contains("<em>italic</em>") == 1
+
+    // Inline code
+    let ic = render("Use `code` here")
+    assert ic.contains("<code>code</code>") == 1
+
+    // Code block
+    let code = render("```\nlet x = 1\n```")
+    assert code.contains("<pre><code>") == 1
+    assert code.contains("let x = 1") == 1
+    assert code.contains("</code></pre>") == 1
+
+    // Unordered list
+    let ul = render("- alpha\n- beta")
+    assert ul.contains("<ul>") == 1
+    assert ul.contains("<li>alpha</li>") == 1
+    assert ul.contains("<li>beta</li>") == 1
+
+    // Ordered list
+    let ol = render("1. first\n2. second")
+    assert ol.contains("<ol>") == 1
+    assert ol.contains("<li>first</li>") == 1
+    assert ol.contains("<li>second</li>") == 1
+
+    // Links
+    let link = render("[click](https://example.com)")
+    assert link.contains("<a href=\"https://example.com\">click</a>") == 1
+
+    // Horizontal rule
+    let hr = render("---")
+    assert hr.contains("<hr>") == 1
+
+    // Blockquote
+    let bq = render("> quoted text")
+    assert bq.contains("<blockquote>") == 1
+    assert bq.contains("quoted text") == 1
+
+    // Mixed document
+    let mixed = render("# Title\n\nSome text\n\n- one\n- two\n\n---\n\n> a quote")
+    assert mixed.contains("<h1>Title</h1>") == 1
+    assert mixed.contains("<p>Some text</p>") == 1
+    assert mixed.contains("<ul>") == 1
+    assert mixed.contains("<li>one</li>") == 1
+    assert mixed.contains("<hr>") == 1
+    assert mixed.contains("<blockquote>") == 1
+}
